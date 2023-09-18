@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 import click
 import torch
 from langchain.docstore.document import Document
-from langchain.embeddings import HuggingFaceInstructEmbeddings
+from langchain.embeddings import HuggingFaceInstructEmbeddings,HuggingFaceEmbeddings
 from langchain.text_splitter import Language, RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 
@@ -133,7 +133,7 @@ def main(device_type):
     # Create embeddings
     embeddings = HuggingFaceInstructEmbeddings(
         model_name=EMBEDDING_MODEL_NAME,
-        model_kwargs={"device": device_type},
+        model_kwargs={"device": 'cpu'},
     )
     # change the embedding type here if you are running into issues.
     # These are much smaller embeddings and will work for most appications
@@ -149,7 +149,8 @@ def main(device_type):
         client_settings=CHROMA_SETTINGS,
 
     )
-   
+    db.persist()
+
 
 
 if __name__ == "__main__":

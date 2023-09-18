@@ -7,7 +7,7 @@ import torch
 from auto_gptq import AutoGPTQForCausalLM
 from flask import Flask, jsonify, request
 from langchain.chains import RetrievalQA
-from langchain.embeddings import HuggingFaceInstructEmbeddings
+from langchain.embeddings import HuggingFaceInstructEmbeddings,HuggingFaceEmbeddings
 
 # from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.llms import HuggingFacePipeline
@@ -36,24 +36,27 @@ EMBEDDINGS = HuggingFaceInstructEmbeddings(model_name=EMBEDDING_MODEL_NAME, mode
 
 # uncomment the following line if you used HuggingFaceEmbeddings in the ingest.py
 # EMBEDDINGS = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+
 if os.path.exists(PERSIST_DIRECTORY):
-    try:
-        shutil.rmtree(PERSIST_DIRECTORY)
-    except OSError as e:
-        print(f"Error: {e.filename} - {e.strerror}.")
+    print('DataBase Found!')
+    # try:
+    #     shutil.rmtree(PERSIST_DIRECTORY)
+    # except OSError as e:
+    #     print(f"Error: {e.filename} - {e.strerror}.")
 else:
+    run_langest_commands = ["python", "ingest.py"]
+    if DEVICE_TYPE == "cpu":
+        run_langest_commands.append("--device_type")
+        run_langest_commands.append(DEVICE_TYPE)
+
+    result = subprocess.run(run_langest_commands, capture_output=True)
+    if result.returncode != 0:
+        raise FileNotFoundError(
+            "No files were found inside SOURCE_DOCUMENTS, please put a starter file inside before starting the API!"
+        )
     print("The directory does not exist")
 
-run_langest_commands = ["python", "ingest.py"]
-if DEVICE_TYPE == "cpu":
-    run_langest_commands.append("--device_type")
-    run_langest_commands.append(DEVICE_TYPE)
 
-result = subprocess.run(run_langest_commands, capture_output=True)
-if result.returncode != 0:
-    raise FileNotFoundError(
-        "No files were found inside SOURCE_DOCUMENTS, please put a starter file inside before starting the API!"
-    )
 
 # load the vectorstore
 DB = Chroma(
@@ -65,7 +68,6 @@ DB = Chroma(
 RETRIEVER = DB.as_retriever()
 
 LLM = load_model(device_type=DEVICE_TYPE, model_id=MODEL_ID, model_basename=MODEL_BASENAME)
-
 QA = RetrievalQA.from_chain_type(
     llm=LLM, chain_type="stuff", retriever=RETRIEVER, return_source_documents=SHOW_SOURCES
 )
@@ -120,7 +122,7 @@ def run_ingest_route():
         if DEVICE_TYPE == "cpu":
             run_langest_commands.append("--device_type")
             run_langest_commands.append(DEVICE_TYPE)
-            
+
         result = subprocess.run(run_langest_commands, capture_output=True)
         if result.returncode != 0:
             return "Script execution failed: {}".format(result.stderr.decode("utf-8")), 500
@@ -145,9 +147,10 @@ def prompt_route():
     global QA
     user_prompt = request.form.get("user_prompt")
     if user_prompt:
-        # print(f'User Prompt: {user_prompt}')
+        print(f'User Prompt: {user_prompt}')
         # Get the answer from the chain
         res = QA(user_prompt)
+        print(res)
         answer, docs = res["result"], res["source_documents"]
 
         prompt_response_dict = {
